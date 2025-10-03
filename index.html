@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Consulta de Licitaciones</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+        
+        .search-section {
+            padding: 25px;
+        }
+        
+        .search-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .alert-danger {
+            background: #ffeaea;
+            border-left: 4px solid #e74c3c;
+            color: #c0392b;
+        }
+        
+        .alert-success {
+            background: #e8f6f3;
+            border-left: 4px solid #27ae60;
+            color: #229954;
+        }
+        
+        .result-section {
+            padding: 20px;
+            display: none;
+        }
+        
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 12px;
+        }
+        
+        .result-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .result-label {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 0.85rem;
+            margin-bottom: 4px;
+        }
+        
+        .result-value {
+            color: #34495e;
+            font-size: 1rem;
+        }
+        
+        .instructions {
+            background: #e8f4fc;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 Sistema de Licitaciones</h1>
+            <p>Consulta información de licitaciones por ID</p>
+        </header>
+        
+        <section class="search-section">
+            <h2>Buscar Licitación</h2>
+            <form class="search-form" id="searchForm">
+                <input type="text" id="licitacionId" placeholder="Ingresa el ID de licitación" required>
+                <button type="submit">Buscar</button>
+            </form>
+            
+            <div class="loading" id="loadingIndicator">
+                <div class="spinner"></div>
+                <p>Buscando en la base de datos...</p>
+            </div>
+            
+            <div class="alert alert-danger" id="errorAlert">
+                <span id="errorMessage"></span>
+            </div>
+            
+            <div class="alert alert-success" id="successAlert" style="display: none;">
+                ✅ Sistema conectado correctamente
+            </div>
+            
+            <div class="instructions">
+                <strong>Instrucciones:</strong> Ingresa el ID exacto de la licitación. Ejemplo: 2215-69-LQ23
+            </div>
+        </section>
+        
+        <section class="result-section" id="resultSection">
+            <h3>Resultados de la Búsqueda</h3>
+            <div class="result-grid" id="resultGrid">
+                <!-- Los resultados aparecerán aquí -->
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // URL de tu Google Apps Script
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzDEXu24V1F-AC0QNY6iju_ocsuFyiwz66qOdk-d0jfTs8HadVtsm8TBBwxaf0WPbc/exec';
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchForm = document.getElementById('searchForm');
+            const licitacionIdInput = document.getElementById('licitacionId');
+            const resultSection = document.getElementById('resultSection');
+            const resultGrid = document.getElementById('resultGrid');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const errorAlert = document.getElementById('errorAlert');
+            const errorMessage = document.getElementById('errorMessage');
+            const successAlert = document.getElementById('successAlert');
+            
+            // Mostrar alerta de éxito al cargar
+            successAlert.style.display = 'block';
+            
+            searchForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const id = licitacionIdInput.value.trim();
+                
+                if (!id) {
+                    showError('Por favor, ingresa un ID de licitación');
+                    return;
+                }
+                
+                // Mostrar loading
+                loadingIndicator.style.display = 'block';
+                resultSection.style.display = 'none';
+                errorAlert.style.display = 'none';
+                successAlert.style.display = 'none';
+                
+                try {
+                    await buscarLicitacion(id);
+                } catch (error) {
+                    console.error('Error:', error);
+                    showError('Error inesperado: ' + error.message);
+                } finally {
+                    loadingIndicator.style.display = 'none';
+                }
+            });
+            
+            async function buscarLicitacion(id) {
+                const url = `${SCRIPT_URL}?id=${encodeURIComponent(id)}`;
+                console.log('Buscando en URL:', url);
+                
+                try {
+                    const response = await fetch(url);
+                    console.log('Respuesta recibida, status:', response.status);
+                    
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Datos recibidos:', data);
+                    
+                    if (data.error) {
+                        showError(data.error);
+                        if (data.ids_ejemplo) {
+                            showError(data.error + '. Ejemplos: ' + data.ids_ejemplo.join(', '));
+                        }
+                    } else if (data.success && data.data) {
+                        mostrarResultados(id, data.data);
+                    } else {
+                        showError('Respuesta inesperada del servidor');
+                    }
+                } catch (error) {
+                    console.error('Error en fetch:', error);
+                    showError('No se pudo conectar con el servidor. Error: ' + error.message);
+                }
+            }
+            
+            function mostrarResultados(id, datos) {
+                resultGrid.innerHTML = '';
+                
+                // Campos específicos que queremos mostrar
+                const camposRequeridos = [
+                    'Año', 'Proveedor', 'Termino Boleta', 'Alerta Boleta', 
+                    'Termino Contrato', 'Alerta Contrato', 'Monto Adjudicado', 
+                    'Saldo Adjudicado', '%', 'Nombre Licitacion', 'Nombre de Analista'
+                ];
+                
+                let camposMostrados = 0;
+                
+                camposRequeridos.forEach(campo => {
+                    // Buscar coincidencia exacta o similar
+                    const claves = Object.keys(datos);
+                    const claveEncontrada = claves.find(key => 
+                        key && key.toString().trim().toLowerCase() === campo.toLowerCase()
+                    );
+                    
+                    if (claveEncontrada && datos[claveEncontrada]) {
+                        const valor = datos[claveEncontrada];
+                        if (valor.toString().trim() !== '') {
+                            const item = document.createElement('div');
+                            item.className = 'result-item';
+                            item.innerHTML = `
+                                <div class="result-label">${campo}</div>
+                                <div class="result-value">${valor}</div>
+                            `;
+                            resultGrid.appendChild(item);
+                            camposMostrados++;
+                        }
+                    }
+                });
+                
+                if (camposMostrados > 0) {
+                    resultSection.style.display = 'block';
+                    errorAlert.style.display = 'none';
+                } else {
+                    showError('Se encontró el ID pero no hay datos para mostrar');
+                }
+            }
+            
+            function showError(mensaje) {
+                errorMessage.textContent = mensaje;
+                errorAlert.style.display = 'block';
+                resultSection.style.display = 'none';
+            }
+            
+            // Enfocar el input al cargar
+            licitacionIdInput.focus();
+        });
+    </script>
+</body>
+</html>
